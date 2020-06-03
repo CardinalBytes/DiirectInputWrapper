@@ -1,8 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace DirectInputWrapper
 {
+    /// <summary>
+    /// Send direct input keys and key combinations globally with ease
+    /// </summary>
     public class DirectInput
     {
         #region NativeCode
@@ -73,7 +78,7 @@ namespace DirectInputWrapper
         [DllImport("user32.dll")]
         private static extern IntPtr GetMessageExtraInfo();
 
-        private static void RawSendKey(ushort key)
+        private static void RawKeyDown(ushort key)
         {
             Input[] inputs =
             {
@@ -95,11 +100,99 @@ namespace DirectInputWrapper
 
             SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(Input)));
         }
+
+        private static void RawKeyUp(ushort key)
+        {
+            Input[] inputs =
+            {
+                new Input
+                {
+                    type = (int) InputType.Keyboard,
+                    u = new InputUnion
+                    {
+                        ki = new KeyboardInput
+                        {
+                            wVk = 0,
+                            wScan = key,
+                            dwFlags = (uint) (KeyEventF.KeyUp | KeyEventF.Scancode),
+                            dwExtraInfo = GetMessageExtraInfo()
+                        }
+                    }
+                }
+            };
+
+            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(Input)));
+        }
         #endregion
 
-        public void Keydown(DirectKeycode key)
+        public static void KeyDown(DirectKeycode key) => RawKeyDown((ushort)key);
+        
+        public static void KeyUp(DirectKeycode key) => RawKeyUp((ushort)key);
+
+        public static void KeyPress(DirectKeycode key, uint duration)
         {
-            RawSendKey();
+            KeyDown(key);
+            Thread.Sleep((int)duration);
+            KeyUp(key);
+        }
+
+        public static void ComboDown(DirectKeyCombo combo)
+        {
+            var kc = new List<DirectKeycode>();
+            if (combo.CtrlKey && combo.Left)
+                kc.Add(DirectKeycode.DkcLcontrol);
+            else
+                kc.Add(DirectKeycode.DkcRcontrol);
+            
+            if (combo.ShiftKey && combo.Left)
+                kc.Add(DirectKeycode.DkcLshift);
+            else
+                kc.Add(DirectKeycode.DkcRshift);
+
+            if (combo.AltKey && combo.Left)
+                kc.Add(DirectKeycode.DkcLmenu);
+            else
+                kc.Add(DirectKeycode.DkcRmenu);
+
+            kc.AddRange(combo.DirectKeycodes);
+
+            foreach(var key in kc)
+            {
+                KeyDown(key);
+            }
+        }
+
+        public static void ComboUp(DirectKeyCombo combo)
+        {
+            var kc = new List<DirectKeycode>();
+            if (combo.CtrlKey && combo.Left)
+                kc.Add(DirectKeycode.DkcLcontrol);
+            else
+                kc.Add(DirectKeycode.DkcRcontrol);
+
+            if (combo.ShiftKey && combo.Left)
+                kc.Add(DirectKeycode.DkcLshift);
+            else
+                kc.Add(DirectKeycode.DkcRshift);
+
+            if (combo.AltKey && combo.Left)
+                kc.Add(DirectKeycode.DkcLmenu);
+            else
+                kc.Add(DirectKeycode.DkcRmenu);
+
+            kc.AddRange(combo.DirectKeycodes);
+
+            foreach (var key in kc)
+            {
+                KeyUp(key);
+            }
+        }
+
+        public static void ComboPress(DirectKeyCombo combo, uint duration)
+        {
+            ComboDown(combo);
+            Thread.Sleep((int)duration); 
+            ComboDown(combo);
         }
     }
 }
